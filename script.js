@@ -8,7 +8,8 @@ let player;
 let brickArray;
 
 // Variables
-let velocityMultiplier = 0;
+let velocityMultiplier = 0; // This helps with controlling the player
+let ballPos = [ 0, 0 ];
 
 // This bit of code calls the initialize function once the domContent is Loaded
 window.addEventListener('DOMContentLoaded', () => { initialize(); });
@@ -22,20 +23,21 @@ function initialize() {
   canvas = document.getElementById("gameCanvas");
   ctx = canvas.getContext("2d");
 
-  let width = canvas.#width;
-  let height = canvas.#height;
+  let width = canvas.width;
+  let height = canvas.height;
 
   let paddleDimensions = [ 200, 20 ];
 
   ball = new Ball( width * .5, height * .5 , 20, '#000022', -8, canvas, paddleDimensions);
   player = new Paddle( paddleDimensions[0], paddleDimensions[1], width , height, 7, '#111111' );
-  brickArray = new BrickArray(5, 4, 120, 10, 10, 20, canvas.#width, '#222222')
+  brickArray = new BrickArray(8, 4, 150, 30, 20, 40, 20,canvas.width, '#555')
 }
 
 // This function is responsible for updating the contents of the game
 // It handles the logic and drawing of the canvas
 function update() {
-  let error = ball.update( [ player.x, player.y ] );
+  ballPos = ball.position();
+  let error = ball.update( ballPos );
 
   // Checking if game over
   if ( error > 0 ) {
@@ -47,16 +49,19 @@ function update() {
   }
 
   player.update( velocityMultiplier );
+  ball.brickCollide(brickArray.collisionDetection( ballPos ));
+
   draw();
 }
 
 // This function is the main function which draws stuff to the screen in an order.
 // It is called roughly every 16ms to obtain a smooth 60fps
 function draw() {
-  ctx.clearRect(0, 0, canvas.#width, canvas.#height);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   ball.draw(ctx);
   player.draw(ctx);
+  brickArray.draw( ctx );
 }
 
 // This function handles keyDownEvents
@@ -110,8 +115,8 @@ class Ball {
     this.speedY = speed;
     this.paddleWidth = paddleDimensions[0];
     this.paddleHeight = paddleDimensions[1];
-    this.canvasWidth = canvas.#width;
-    this.canvasHeight = canvas.#height;
+    this.canvasWidth = canvas.width;
+    this.canvasHeight = canvas.height;
   }
 
   // This function draws the ball on a canvas
@@ -136,10 +141,16 @@ class Ball {
     return  1;
   }
 
+  // This function multiplies the current ySpeed with the collision return value. A '1' suggests no collision while a '-1' is used when a collision is detected
+  // This approach helps in performance as instead of checking for a condition before inverting the speed, we can just multiply the ySpeed with the error code as multiplication is faster than conditional logic/
+  brickCollide = ( collide ) => { this.speedY *= collide};
+
+  position() { return [ this.x, this.y ] }
+
   // This function moves the ball
   #move() {
-    this.x += this.speedX /* The first value of the array represents the horizontal speed */ ;
-    this.y += this.speedY /* The second value of the array represents the vertical speed */ ;
+    this.x += this.speedX;
+    this.y += this.speedY;
   }
 
   // This function handles the collision detection
@@ -153,7 +164,7 @@ class Ball {
     // Wall collisions
     // Checking to see if the ball is colliding with the top
     if ( yPos < radius )
-      this.speedY = -speedY;
+      this.speedY = -this.speedY;
     // Checking to see if the ball is colliding either side
     else if ( xPos < radius || xPos + radius > this.canvasWidth )
       this.speedX = -speedX;
@@ -172,13 +183,13 @@ class Ball {
 // Paddle class
 // This holds the entire logic for the Paddles
 class Paddle {
-  #x;
-  #y;
-  #color;
-  #speed;
-  #length;
-  #bredth;
-  #canvasWidth;
+  _x;
+  _y;
+  color;
+  speed;
+  length;
+  breadth;
+  canvasWidth;
 
   constructor( width, height, canvasWidth, yPos, speed, color) {
     this._x = (canvasWidth - width) * .5;
@@ -186,12 +197,9 @@ class Paddle {
     this.color = color;
     this.speed = speed;
     this.length = height;
-    this.bredth = width;
+    this.breadth = width;
     this.canvasWidth = canvasWidth;
   }
-
-  get x() { return this._x; };
-  get y() { return this._y; };
 
   update( velocityMultiplier ) {
     this.#move(velocityMultiplier)
@@ -202,12 +210,12 @@ class Paddle {
 
     if ( this._x < 0 ) this._x = 0
 
-    else if ( this._x + this.bredth > this.canvasWidth ) this._x = this.canvasWidth - this.bredth
+    else if ( this._x + this.breadth > this.canvasWidth ) this._x = this.canvasWidth - this.breadth
   }
 
   draw(ctx) {
     ctx.beginPath();
-    ctx.rect( this._x, this._y, this.bredth, this.length );
+    ctx.rect( this._x, this._y, this.breadth, this.length );
     ctx.fillStyle = this.color;
     ctx.fill();
     ctx.closePath();
@@ -222,17 +230,20 @@ class BrickArray {
   #brickWidth;
   #brickHeight;
   #paddingTop;
-  #desiredOffset;
+  #paddingLeft;
+  #offsetLeft;
+  #offsetTop;
   #canvasWidth;
   #color;
 
-  constructor( columns, rows, brickWidth, brickHeight, paddingTop, desiredOffset, canvasWidth, color ) {
+  constructor( columns, rows, brickWidth, brickHeight, paddingTop, paddingLeft, offsetTop, canvasWidth, color ) {
     this.#columns = columns;
     this.#rows = rows;
     this.#brickWidth = brickWidth;
     this.#brickHeight = brickHeight;
     this.#paddingTop = paddingTop;
-    this.#desiredOffset = desiredOffset;
+    this.#paddingLeft = paddingLeft;
+    this.#offsetTop = offsetTop;
     this.#canvasWidth = canvasWidth;
     this.#color = color;
 
@@ -240,12 +251,8 @@ class BrickArray {
   }
 
   initialize ( ) {
-    let minWidth = this.#columns * this.#brickWidth;
-    let spaceLeft = this.#canvasWidth - minWidth;
-
-
-
-    console.log( `minWidth = ${minWidth}, canvasWidth = ${this.#canvasWidth}, spaceLeft = ${spaceLeft}`)
+    //this.#offsetLeft = (this.#canvasWidth - (this.#columns * (this.#brickWidth + this.#paddingLeft) )) * .5;
+    this.#offsetLeft = (this.#canvasWidth - (this.#columns * this.#brickWidth + this.#columns * this.#paddingLeft) ) * 0.5 + (this.#paddingLeft * .5);
 
     this.initArray();
   }
@@ -261,7 +268,32 @@ class BrickArray {
       this._bricks[col] = [];
       // Looping over the rows
       for (let row = 0; row < this.#rows; row++) {
-        this._bricks[col][row] = new Brick();
+        let xPos = (this.#brickWidth + this.#paddingLeft) * col + this.#offsetLeft;
+        let yPos = (this.#brickHeight + this.#paddingTop) * row + this.#offsetTop;
+
+        this._bricks[col][row] = new Brick( xPos, yPos, this.#brickWidth, this.#brickHeight, this.#color);
+      }
+    }
+  }
+
+  collisionDetection( playerPos ) {
+    for ( let col = 0; col < this.#columns; col++) {
+      for (let row = 0; row < this.#rows; row++) {
+        let brick = this._bricks[col][row];
+        let err = brick.update( playerPos );
+
+        if (err === -1) return err
+      }
+    }
+    return 1;
+  }
+
+  draw(ctx) {
+    let arr = this._bricks;
+
+    for ( let col = 0; col < this.#columns; col++) {
+      for (let row = 0; row < this.#rows; row++) {
+        arr[col][row].draw(ctx);
       }
     }
   }
@@ -282,5 +314,34 @@ class Brick {
     this.#width = width;
     this.#height = height;
     this.#color = color;
+  }
+
+  update( ballPos ) {
+    this.#collisionDetection( ballPos );
+  }
+
+  #collisionDetection( playerPos ) {
+    let playerX = playerPos[0],
+      playerY = playerPos[1],
+      xPos = this.#xPos,
+      yPos = this.#yPos;
+
+    // Checking for Collision with the player
+    if ( playerX > xPos && playerX < xPos + this.#width && playerY < yPos && playerY > yPos + this.#height ) {
+      console.log('collide');
+      return -1; // If collision detected, we return a negative 1
+    }
+    // Usually we just return a 1
+    return 1;
+  }
+
+  draw( ctx ) {
+    ctx.beginPath();
+
+    ctx.rect( this.#xPos, this.#yPos, this.#width, this.#height );
+    ctx.fillStyle = this.#color;
+    ctx.fill();
+
+    ctx.closePath();
   }
 }

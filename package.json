@@ -1,0 +1,23 @@
+{
+  "name": "first_js_game",
+  "version": "1.0.0",
+  "description": "",
+  "main": "script.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/1MuhammadYahya/SimpleJSGame.git"
+  },
+  "keywords": [
+    "Game",
+    "JS"
+  ],
+  "author": "Muhammad Yahya Warraich",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/1MuhammadYahya/SimpleJSGame/issues"
+  },
+  "homepage": "https://github.com/1MuhammadYahya/SimpleJSGame#readme"
+}

@@ -9,7 +9,7 @@ let ball,
 
 // Variables
 let velocityMultiplier = 0,
- playerLives = 3,
+  playerLives = 3,
   orgLives = playerLives,
   score = 0,
   highScore,
@@ -39,11 +39,18 @@ function initialize() {
   canvas.width = screenX;
   canvas.height = screenY;
 
-  let paddleDimensions = [ 200, 20 ];
+  const  paddleDimensions = [ 200 , 20 ],
+    ballRadius = 20,
+    brickDimensions = [ 200, 20 ];
 
-  ball = new Ball( screenX * .5, screenY * .5 , 20, '#542897', 7.5, 9, screenX, screenY, paddleDimensions);
-  player = new Paddle( paddleDimensions[0], paddleDimensions[1], screenX , screenY, 7, '#6043a2' );
-  brickArray = new BrickArray( 8, 7, 200, 20, 20, 20, 20 , screenX, '#654991', '#9887AB')
+  const idealScreenSize = 1366,
+    scaledSizes = ScaleSize( idealScreenSize, screenX, ballRadius, brickDimensions[0], paddleDimensions[0] )
+
+  paddleDimensions[0] = scaledSizes.paddleWidth
+
+  ball = new Ball( screenX * .5, screenY * .5 , scaledSizes.ballRadius, '#542897', 7.5, 9, screenX, screenY, paddleDimensions);
+  player = new Paddle( scaledSizes.paddleWidth, paddleDimensions[1], screenX , screenY, 7, '#6043a2' );
+  brickArray = new BrickArray( 8, 7, scaledSizes.brickWidth, 20, 3, 20, 20, 20 , screenX, '#654991', '#9887AB')
 }
 
 // This function is responsible for updating the contents of the game
@@ -84,7 +91,7 @@ function update() {
   }
 
   // Checking if game won
-  if (bricksDestoryed === brickArray.size) {
+  if (bricksDestoryed === brickArray.size * brickArray.health) {
     // Checking if the current score is higher than the high score and setting it as the high score if it is
     if ( score > highScore )
       localStorage.setItem('highScore', `${score}`)
@@ -111,6 +118,7 @@ function Reset( message ) {
   brickArray.Reset();
 
   score = 0;
+  bricksDestoryed = 0;
   playerLives = orgLives;
 
   alert(message);
@@ -152,9 +160,33 @@ function keyUpHandler( e ) {
     velocityMultiplier = 0;
 }
 
+// This function Clamps a number between two extremes
+function Clamp( number, min, max ) {
+  return Math.min( Math.max( number, min ), max )
+}
+
+// Scales the size of objects according to the current screen size
+function ScaleSize( referenceScreenSize, currentScreenSize, idealBallRadius, idealBrickWidth, idealPaddleWidth ) {
+  // Calculating the percentage of screen occupied in the ideal world
+  const ballPercentage = idealBallRadius / referenceScreenSize,
+    brickPercentage = idealBrickWidth / referenceScreenSize,
+    paddlePercentage = idealPaddleWidth / referenceScreenSize;
+
+  const scaledBallRadius = currentScreenSize * ballPercentage,
+    scaledBrickWidth = currentScreenSize * brickPercentage,
+    scaledPaddleWidth = currentScreenSize * paddlePercentage
+
+  return {
+    brickWidth: scaledBrickWidth,
+    ballRadius: scaledBallRadius,
+    paddleWidth: scaledPaddleWidth
+  }
+}
+
 // This bit of code infinitely calls the draw function
 // Storing it in a variable so that it can be disposed off later
 setInterval(update, 16.6);
+
 // As this implementation is based on OOP, we shall be using classes
 // However if you want to convert this to functions only. that too can be done pretty easily
 
@@ -227,7 +259,7 @@ class Ball {
   // This function helps start the game when the spacebar is pressed
   spaceToStart() {
     this.#speedX = this.#orgSpeedX * (Math.round(Math.random()) * 2 - 1); // Multiplying randomly with 1 or -1
-    this.#speedY = this.#orgSpeedY * (Math.round(Math.random()) * 2 - 1); // Multiplying randomly with 1 or -1
+    this.#speedY = -this.#orgSpeedY; // Multiplying randomly with 1 or -1
   }
 
   // This function draws the ball on a canvas
@@ -276,7 +308,7 @@ class Ball {
       return 1;
 
     // Paddle Collision
-    if ( ( xPos > playerPos[0] && xPos < playerPos[0] + this.paddleWidth ) && ( yPos + radius >= playerPos[1] && yPos <= playerPos[1] + this.paddleHeight ) )
+    if ( ( xPos + radius > playerPos[0] && xPos - radius < playerPos[0] + this.paddleWidth ) && ( yPos + radius >= playerPos[1] && yPos - radius <= playerPos[1] + this.paddleHeight ) )
       this.#speedY *= -1;
 
     return 0;
@@ -295,12 +327,12 @@ class Paddle {
   canvasWidth;
 
   constructor( width, height, canvasWidth, yPos, speed, color) {
-    this._x = (canvasWidth - width) * .5;
     this._y = yPos - height * 2;
     this.color = color;
     this.speed = speed;
     this.length = height;
     this.breadth = width;
+    this._x = (canvasWidth - this.breadth) * .5;
     this.canvasWidth = canvasWidth;
   }
 
@@ -339,6 +371,7 @@ class BrickArray {
   #rows;
   #brickWidth;
   #brickHeight;
+  #brickHealth;
   #paddingTop;
   #paddingLeft;
   #offsetLeft;
@@ -349,15 +382,23 @@ class BrickArray {
 
   get size() { return (this.#columns * this.#rows) }
 
-  constructor( columns, rows, brickWidth, brickHeight, paddingTop, paddingLeft, offsetTop, canvasWidth, color1, color2 ) {
+  constructor( columns, rows, brickWidth, brickHeight, brickHealth, paddingTop, paddingLeft, offsetTop, canvasWidth, color1, color2 ) {
+
     this.#columns = columns;
     this.#rows = rows;
+
     this.#brickWidth = brickWidth;
     this.#brickHeight = brickHeight;
+
+    this.#brickHealth = brickHealth
+
     this.#paddingTop = paddingTop;
     this.#paddingLeft = paddingLeft;
+
     this.#offsetTop = offsetTop;
+
     this.#canvasWidth = canvasWidth;
+
     this.#color1 = color1;
     this.#color2 = color2;
 
@@ -395,7 +436,7 @@ class BrickArray {
 
         let color = ( col + row ) % 2 === 1 ? this.#color1 : this.#color2;
 
-        this._bricks[col][row] = new Brick( xPos, yPos, this.#brickWidth, this.#brickHeight, color);
+        this._bricks[col][row] = new Brick( xPos, yPos, this.#brickWidth, this.#brickHeight, color, this.#brickHealth);
       }
     }
   }
@@ -415,13 +456,15 @@ class BrickArray {
         element.draw(ctx);
 
         if ( element.collisionDetection( playerX, playerY ) ) {
-          element.status = 0;
+          element.status = element.health === 0 ? 0 : 1;
           return true;
         }
       }
     }
     return false;
   }
+
+  get health() { return this.#brickHealth }
 }
 
 // Brick class
@@ -433,23 +476,52 @@ class Brick {
   #height;
   #color;
   #status;
+  #health;
 
   get status() { return this.#status; }
+  get health() { return this.#health }
   set status(value) { this.#status = value; }
 
-  constructor( xPos, yPos, width, height, color ) {
+  constructor( xPos, yPos, width, height, color, health ) {
     this.#xPos = xPos
     this.#yPos = yPos;
     this.#width = width;
     this.#height = height;
     this.#color = color;
+    this.#health = health;
 
     this.#status = 1;
   }
 
   // Checking for collisions with the player
   collisionDetection ( playerX, playerY ) {
-    return playerX > this.#xPos && playerX < this.#xPos + this.#width && playerY + 20> this.#yPos && playerY - 20 < this.#yPos + this.#height;
+    if (playerX > this.#xPos && playerX < this.#xPos + this.#width && playerY + 20> this.#yPos && playerY - 20 < this.#yPos + this.#height) {
+      this.#health -= 1;
+
+      let col = this.#color.split("");
+
+      let r = col[1],
+        g = col[3],
+        b = col[5]
+
+      r = isNaN(+r) ? 9 : r - 1;
+      g = isNaN(+g) ? 9 : g - 1;
+      b = isNaN(+b) ? 9 : b - 1;
+
+      col[1] = r
+      col[3] = b
+      col[5] = g
+
+      let changedColor = ""
+
+      col.forEach(element => {
+        changedColor += element
+      });
+
+      this.#color = changedColor
+
+      return true
+    }
   }
 
   // Drawing the brick
